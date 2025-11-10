@@ -1,0 +1,84 @@
+## rn7 genome reannotation
+
+# Bulk RNA-seq Processing Pipeline
+
+1. Download rat pituitary RNAseq FASTQ Files :
+PRJEB39130
+SRR634968
+RJCA004225
+
+2. Add STAR to PATH
+
+PATH=$PATH:your/path/to/STAR-2.7.11a/bin/Linux_x86_64/
+
+3. Create the Genome Index
+
+STAR --runThreadN 5 \
+     --runMode genomeGenerate \
+     --genomeDir 'your/path/to/RN7/RN7Genome' \
+     --genomeFastaFiles 'your/path/to/RN7/fasta/genome.fa' \
+     --sjdbGTFfile 'your/path/to/RN7/genes/genes.gtf' \
+     --sjdbOverhang 99
+
+4. Align FASTQ Files with STAR
+
+STAR --runThreadN 5 \
+     --genomeDir '/media/david/F/RN7.2/RN7/RN7Genome' \
+     --readFilesIn '/media/david/F/SRA/RATpit/PRJEB39130/Merged_PRJEB39130_R1.fq' \
+                   '/media/david/F/SRA/RATpit/PRJEB39130/Merged_PRJEB39130_R2.fq' \
+     --outFileNamePrefix '/media/david/F/RN7.2/BamSRA/PRJEB39130'
+
+STAR --runThreadN 5 \
+     --genomeDir '/media/david/F/RN7.2/RN7/RN7Genome' \
+     --readFilesIn '/media/david/F/SRA/RATpit/PRJNA183967/SRR634968_1.fastq' \
+                   '/media/david/F/SRA/RATpit/PRJNA183967/SRR634968_2.fastq' \
+     --outFileNamePrefix '/media/david/F/RN7.2/BamSRA/PRJNA183967'
+
+STAR --runThreadN 5 \
+     --genomeDir '/media/david/F/RN7.2/RN7/RN7Genome' \
+     --readFilesIn '/media/david/F/SRA/RATpit/PRJCA004225/Merged_PRJCA004225_R1.fq' \
+                   '/media/david/F/SRA/RATpit/PRJCA004225/Merged_PRJCA004225_R2.fq' \
+     --outFileNamePrefix '/media/david/F/RN7.2/BamSRA/PRJCA004225'
+
+5. Sort SAM Files (for each data set)
+
+samtools sort /media/david/F/RN7.2/BamSRA/PRJEB39130.sam -o /media/david/F/RN7.2/BamSRA/PRJEB39130_sorted.bam
+
+6. Remove Duplicates
+
+samtools rmdup -S /media/david/F/RN7.2/BamSRA/PRJEB39130_sorted.bam /media/david/F/RN7.2/BamSRA/PRJEB39130_sorted_dedup.bam
+
+7. Index BAM Files
+
+samtools index /media/david/F/RN7.2/BamSRA/PRJEB39130_sorted_dedup.bam
+
+8. Separate Reads by Strand
+
+Forward Strand:
+samtools view -b -f 128 -F 16 /media/david/F/RN7.2/BamSRA/PRJCA004225_sorted_dedup.bam > /media/david/F/RN7.2/BamSRA/PRJCA004225_fwd1.bam
+samtools view -b -f 80  /media/david/F/RN7.2/BamSRA/PRJCA004225_sorted_dedup.bam > /media/david/F/RN7.2/BamSRA/PRJCA004225_fwd2.bam
+samtools merge -f /media/david/F/RN7.2/BamSRA/PRJCA004225_fwd.bam /media/david/F/RN7.2/BamSRA/PRJCA004225_fwd1.bam /media/david/F/RN7.2/BamSRA/PRJCA004225_fwd2.bam
+samtools index /media/david/F/RN7.2/BamSRA/PRJCA004225_fwd.bam
+
+Reverse Strand:
+samtools view -b -f 144 /media/david/F/RN7.2/BamSRA/PRJCA004225_sorted_dedup.bam > /media/david/F/RN7.2/BamSRA/PRJCA004225_rev1.bam
+samtools view -b -f 64 -F 16 /media/david/F/RN7.2/BamSRA/PRJCA004225_sorted_dedup.bam > /media/david/F/RN7.2/BamSRA/PRJCA004225_rev2.bam
+samtools merge -f /media/david/F/RN7.2/BamSRA/PRJCA004225_rev.bam /media/david/F/RN7.2/BamSRA/PRJCA004225_rev1.bam /media/david/F/RN7.2/BamSRA/PRJCA004225_rev2.bam
+samtools index /media/david/F/RN7.2/BamSRA/PRJCA004225_rev.bam
+
+9. Merge BAM Files
+
+Forward Reads:
+samtools merge -f /media/david/F/RN7.2/BamSRA/MergedRN7.1_fwd.bam \
+    /media/david/F/RN7.2/BamSRA/PRJCA004225_fwd.bam \
+    /media/david/F/RN7.2/BamSRA/PRJEB39130_fwd.bam
+samtools index /media/david/F/RN7.2/BamSRA/MergedRN7.1_fwd.bam
+
+Reverse Reads:
+samtools merge -f /media/david/F/RN7.2/BamSRA/MergedRN7.1_rev.bam \
+    /media/david/F/RN7.2/BamSRA/PRJCA004225_rev.bam \
+    /media/david/F/RN7.2/BamSRA/PRJEB39130_rev.bam
+samtools index /media/david/F/RN7.2/BamSRA/MergedRN7.1_rev.bam
+
+
+
