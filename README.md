@@ -1,5 +1,9 @@
-# snMultiome-Pituitary
+### snMultiome-Pituitary preprocessing
 
-Preprocessing fastq -> .h5
+## rn7 genome reannotation
+-> bulk RNA seq processing
+-> rn7 reannotation
 
-Integration { PG2 ; PG6 ; ¨G24 ; PG13 } -> Integrated
+## Seurat processing
+-> Preprocessing fastq -> .h5
+-> multiome samples integration { PG2 ; PG6 ; ¨G24 ; PG13 } -> Integrated
