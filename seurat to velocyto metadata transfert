@@ -1,0 +1,25 @@
+###################### Velocity ######################
+Cluster_X <- subset(integrated, idents = 'Cluster_X')
+# Save metadata table
+Cluster_X$barcode <- colnames(Cluster_X)
+Cluster_X$UMAP_1 <- Cluster_X@reductions$multimodal_umap@cell.embeddings[, 1]
+Cluster_X$UMAP_2 <- Cluster_X@reductions$multimodal_umap@cell.embeddings[, 2]
+write.csv(Cluster_X@meta.data, file = 'metadataCluster_X.csv', quote = FALSE, row.names = FALSE)
+
+# Write expression counts matrix
+library(Matrix)
+counts_matrix <- LayerData(object = Cluster_X[['SoupXRNA']])
+writeMM(counts_matrix, file = 'countsCluster_X.mtx')
+
+# Write dimensionality reduction matrix (PCA)
+multimodal <- Cluster_X@reductions$pca@cell.embeddings
+write.csv(multimodal, file = 'pcaCluster_X.csv', quote = FALSE, row.names = FALSE)
+
+# Write gene names
+write.table(
+  data.frame('gene' = rownames(counts_matrix)),
+  file = 'gene_namesCluster_X.csv',
+  quote = FALSE,
+  row.names = FALSE,
+  col.names = FALSE
+)
