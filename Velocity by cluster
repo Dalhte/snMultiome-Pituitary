@@ -1,0 +1,149 @@
+# Activate conda environment:
+# $ conda activate py38
+
+import os
+import numpy as np
+import pandas as pd
+import scanpy as sc
+import scvelo as scv
+import anndata
+from scipy import io
+
+# -------------------------------
+# Set cluster name (edit this line)
+# -------------------------------
+cluster = "Cluster_G"   # e.g. "Cluster_L", "Cluster_M", etc.
+
+# -------------------------------
+# Paths
+# -------------------------------
+base_dir = "your/path/to/data"
+cluster_dir = os.path.join(base_dir, cluster)
+os.chdir(cluster_dir)
+
+# -------------------------------
+# Load data
+# -------------------------------
+X = io.mmread(f"counts{cluster}.mtx")
+
+adata = anndata.AnnData(X=X.transpose().tocsr())
+
+cell_meta = pd.read_csv(f"metadata{cluster}.csv")
+with open(f"gene_names{cluster}.csv", "r") as f:
+    gene_names = f.read().splitlines()
+
+adata.obs = cell_meta
+adata.obs.index = adata.obs["barcode"]
+adata.var.index = gene_names
+
+pca = pd.read_csv(f"pca{cluster}.csv")
+pca.index = adata.obs.index
+adata.obsm["X_pca"] = pca.to_numpy()
+adata.obsm["X_umap"] = np.vstack(
+    (adata.obs["UMAP_1"].to_numpy(), adata.obs["UMAP_2"].to_numpy())
+).T
+
+# -------------------------------
+# Initial UMAP plot
+# -------------------------------
+sc.pl.umap(adata, color=["orig.ident"], frameon=False, save=True)
+
+# -------------------------------
+# Save and reload
+# -------------------------------
+adata.write(f"{cluster}_velo.h5ad")
+adata = sc.read_h5ad(f"{cluster}_velo.h5ad")
+
+# -------------------------------
+# Merge with reference dataset
+# -------------------------------
+ldatanov1 = sc.read_h5ad(os.path.join(base_dir, "ldatanov1.h5ad"))
+
+scv.utils.clean_obs_names(adata)
+scv.utils.clean_obs_names(ldatanov1)
+adatam = scv.utils.merge(adata, ldatanov1)
+
+sc.pl.umap(adatam, color=["orig.ident"], frameon=False, save=True)
+
+# -------------------------------
+# Pre-processing and velocity computation
+# -------------------------------
+sc.pp.neighbors(adatam, n_neighbors=15, use_rep="X_pca")
+scv.pp.filter_and_normalize(adatam)
+scv.pp.moments(adatam)
+scv.tl.velocity(adatam, mode="stochastic")
+scv.tl.velocity_graph(adatam)
+
+adatam.write(f"{cluster}_velocity.h5ad")
+adatam = sc.read_h5ad(f"{cluster}_velocity.h5ad")
+
+# -------------------------------
+# Visualisations
+# -------------------------------
+scv.pl.velocity_embedding(adatam, basis="umap", frameon=False, save=f"_{cluster}_embedding.pdf")
+scv.pl.velocity_embedding_grid(adatam, basis="umap", color="cell_Type", title="",
+                               scale=0.25, save=f"_{cluster}_grid_CellType.pdf")
+scv.pl.velocity_embedding_grid(adatam, basis="umap", color="orig.ident", title="",
+                               scale=0.25, save=f"_{cluster}_grid_Orig.pdf")
+scv.pl.velocity_embedding_stream(adatam, basis="umap", color=["cell_Type", "orig.ident"],
+                                 title="", save=f"_{cluster}_stream.pdf")
+
+# -------------------------------
+# Velocity genes
+# -------------------------------
+scv.tl.rank_velocity_genes(adatam, groupby="cell_Type", min_corr=0.3)
+df = scv.DataFrame(adatam.uns["rank_velocity_genes"]["names"])
+df.to_csv(f"velocity_genes_{cluster}.csv")
+
+# Selected genes
+scv.pl.velocity(adatam, var_names=["Lhb", "Fshb", "Gnrhr", "Nr5a1"],
+                color="cell_Type", save=f"_{cluster}_SelectedGenes.pdf")
+
+scv.tl.velocity_confidence(adatam)
+scv.pl.scatter(adatam, c=["velocity_length", "velocity_confidence"],
+               cmap="coolwarm", perc=[5, 95])
+
+scv.tl.velocity_pseudotime(adatam)
+scv.pl.scatter(adatam, color="velocity_pseudotime", cmap="gnuplot")
+
+# -------------------------------
+# PAGA and dynamics
+# -------------------------------
+adatam.uns["neighbors"]["distances"] = adatam.obsp["distances"]
+adatam.uns["neighbors"]["connectivities"] = adatam.obsp["connectivities"]
+
+scv.tl.paga(adatam, groups="cell_Type")
+scv.tl.recover_dynamics(adatam)
+scv.tl.velocity(adatam, mode="dynamical")
+scv.tl.velocity_graph(adatam)
+
+scv.pl.velocity_embedding_stream(adatam, basis="umap",
+                                 color=["cell_Type", "orig.ident"],
+                                 title="", save=f"_{cluster}_dynamical_stream.pdf")
+
+# -------------------------------
+# Fit parameters and latent time
+# -------------------------------
+df = adatam.var
+df = df[(df["fit_likelihood"] > 0.1) & (df["velocity_genes"] == True)]
+
+with scv.GridSpec(ncols=3) as pl:
+    pl.hist(df["fit_alpha"], xlabel="Transcription rate", xscale="log", fontsize=14)
+    pl.hist(df["fit_beta"] * df["fit_scaling"], xlabel="Splicing rate", xscale="log", fontsize=14)
+    pl.hist(df["fit_gamma"], xlabel="Degradation rate", xscale="log", fontsize=14)
+
+scv.tl.latent_time(adatam)
+scv.pl.scatter(adatam, color="latent_time", color_map="gnuplot", size=80)
+
+top_genes = adatam.var["fit_likelihood"].sort_values(ascending=False).index[:300]
+
+scv.pl.heatmap(adatam, var_names=top_genes, sortby="latent_time",
+               col_color="orig.ident", n_convolve=100, standard_scale=0,
+               sort=True, colorbar=None, col_cluster=False, row_cluster=False,
+               save=f"_{cluster}_heatmap.png")
+
+# -------------------------------
+# Save outputs
+# -------------------------------
+adatam.var.to_csv(f"adatam_{cluster}_var.csv", header=True)
+adatam.write(f"{cluster}_velocity_final.h5ad")
