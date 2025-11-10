@@ -1,0 +1,45 @@
+###############################################
+#          GTF CLEANING AND SETUP             #
+###############################################
+
+# 1. Remove unwanted chromosome prefixes
+grep -v -E "^chr[0-9UnYXM]+_" \
+'your/path/to/NovelPitAnnotLevelRN7.gff3' \
+> 'your/path/to/NovelPitAnnotLevelRN7_chr.gtf'
+
+# 2. Convert GFF to GTF format using AGAT
+agat_convert_sp_gff2gtf.pl \
+--gff 'your/path/to/NovelPitAnnotLevelRN7_chr.gtf' \
+--output 'your/path/to/NovelPitAnnotLevelRN7_chr_clean.gtf'
+
+
+###############################################
+#     CELL RANGER ARC: REFERENCE CREATION     #
+###############################################
+
+# 3. Create configuration file: RN7_novel.config
+cat <<EOF > your/path/to/RN7_novel.config
+{
+    organism: "Rattus norvegicus",
+    genome: ["RN7_novel"],
+    input_fasta: ["your/path/to/rn7.fa"],
+    input_gtf: ["your/path/to/NovelPitAnnotLevelRN7_chr_clean.gtf"],
+    non_nuclear_contigs: ["chrM"]
+}
+EOF
+
+# 4. Build the reference genome
+cellranger-arc mkref --config= your/path/to/RN7_novel.config
+
+
+###############################################
+#      CELL RANGER ARC: COUNT GENERATION      #
+###############################################
+
+# 5. Run Cell Ranger ARC count (example: PG2 sample)
+cellranger-arc count \
+--id=PG2 \
+--reference='your/path/to/reference' \
+--libraries='your/path/to/libraries_PG2.csv' \
+--localcores=16 \
+--localmem=64
