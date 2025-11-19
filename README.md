@@ -1,7 +1,8 @@
 # 🧬 snMultiome Pituitary
 Single-nucleus multi-omic profiling of rat pituitary across the estrus cycle, integrating transcriptomics (snRNA-seq) and chromatin accessibility (snATAC-seq) to reconstruct regulatory dynamics and gene networks.
 
-![Workflow](https://raw.githubusercontent.com/Dalhte/snMultiome-Pituitary/main/Workflow.png)
+![Workflow](Workflow.png)
+
 
 ## 📚 Overview
 
