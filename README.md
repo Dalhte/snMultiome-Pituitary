@@ -6,4 +6,4 @@
 
 ## Seurat processing
 -> Preprocessing fastq -> .h5
--> multiome samples integration { PG2 ; PG6 ; ¨G24 ; PG13 } -> Integrated
+-> multiome samples integration { Ratn°1 to 12 } -> Integrated
